@@ -1,0 +1,159 @@
+---
+title: "Decision Tree Classifier in R"
+author: "Salman Virani"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    number_sections: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(readr)
+library(dplyr)
+library(keras)
+library(caret)
+library(rpart)
+library(rpart.plot)
+
+source("./functions/train_val_test.R")
+
+```
+
+# Data Understanding
+
+We will work on spam emails.
+
+## Data Import
+
+```{r}
+# if file does not exist, download it first
+file_path <- "./data/spam.csv"
+if (!file.exists(file_path)) {
+  dir.create("./data")
+  url <- "https://archive.ics.uci.edu/ml/machine-learning-databases/spambase/spambase.data"
+  download.file(url = url, 
+                destfile = file_path)
+}
+```
+
+Import the file to an object called "spam".
+
+```{r}
+spam <- read_csv("./data/spam.csv")
+```
+
+# Data Preparation
+
+## Column Names
+
+Assign the column names correctly.
+
+```{r}
+col_names_to_set <- c("word_freq_make","word_freq_address","word_freq_all","word_freq_3d","word_freq_our","word_freq_over","word_freq_remove","word_freq_internet","word_freq_order","word_freq_mail","word_freq_receive","word_freq_will","word_freq_people","word_freq_report","word_freq_addresses","word_freq_free","word_freq_business","word_freq_email","word_freq_you","word_freq_credit","word_freq_your","word_freq_font","word_freq_000","word_freq_money","word_freq_hp","word_freq_hpl","word_freq_george","word_freq_650","word_freq_lab","word_freq_labs","word_freq_telnet","word_freq_857","word_freq_data","word_freq_415","word_freq_85","word_freq_technology","word_freq_1999","word_freq_parts","word_freq_pm","word_freq_direct","word_freq_cs","word_freq_meeting","word_freq_original","word_freq_project","word_freq_re","word_freq_edu","word_freq_table","word_freq_conference","char_freq_;","char_freq_(","char_freq_[","char_freq_!","char_freq_$","char_freq_#","capital_run_length_average","capital_run_length_longest","capital_run_length_total", "target" 
+)
+colnames(spam) <- col_names_to_set
+```
+
+Check the summary of the data to see if there are missing values. Are there any missing?
+
+```{r echo=TRUE}
+sum(is.na(spam))
+# There are no missing values
+```
+
+Transform the target variable to factors.
+
+```{r}
+spam$target <- as.factor(spam$target)
+```
+
+## Train / Validation / Test Split
+
+Split the data into train, validation, and test data. Use splitting ratios of 80% training, 20% validation. Multi-Assignment Operator from keras has been used here. 
+
+```{r}
+c(train, val, test) %<-% train_val_test_split(spam, 0.8, 0.2, 0)
+```
+
+# Modeling 
+
+## Model Creation
+
+Create a decision tree model for target-variable. Take all other parameters into account.
+
+```{r}
+model_decision_tree <- rpart(target~., data = train)
+```
+
+## Visualisation
+
+Create a visualisation which shows the decision tree.
+
+```{r}
+rpart.plot(x = model_decision_tree)
+```
+
+# Predictions
+
+Create predictions for train, and validation data. These will be probabilities.
+
+```{r}
+train$target_pred <- predict(model_decision_tree, newdata = train)[,2]
+val$target_pred <- predict(model_decision_tree, newdata = val)[,2]
+```
+
+Based on probablitites we want to derive class predictions. Please use of threshold of 0.5 for assignment of classes.
+
+```{r}
+train$target_pred_class <- ifelse(train$target_pred > 0.5, 1, 0) %>%
+  as.factor()
+val$target_pred_class <- ifelse(val$target_pred > 0.5, 1, 0) %>% as.factor()
+```
+
+# Model Performance
+
+We will compare our classifier to the baseline classifier.
+
+## Baseline Classifier
+
+Please calculate the baseline classifier (assignment to most frequent class).
+
+```{r}
+table(train$target)[1] / length(train$target) * 100
+```
+
+## Confusion Matrix
+
+Calculate a confusion matrix for Training Data:
+
+```{r}
+conf_mat_train <- table(Predicted = train$target_pred_class, Actual = train$target)
+conf_mat_train
+```
+
+Calculate a confusion matrix for Validation Data:
+
+```{r}
+conf_mat_val <- table(Predicted = val$target_pred_class, Actual = val$target)
+conf_mat_val
+```
+
+Calculate the Accuracy from the confusion matrix (for training and validation data).
+
+```{r}
+confusionMatrix(conf_mat_train)
+confusionMatrix(conf_mat_val)
+```
+
+**Is our classifier superior to baseline classifier?**
+
+Yes, both the training and validation accuracy is very good.
+
+Lastly, lets thank the UCI Machine Learning Repository from where we got the data. 
